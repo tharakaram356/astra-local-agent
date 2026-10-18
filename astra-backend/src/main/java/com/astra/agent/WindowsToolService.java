@@ -38,6 +38,7 @@ public class WindowsToolService {
     private static final Logger log = LoggerFactory.getLogger(WindowsToolService.class);
 
     public record ExecutionResult(String reply, String tool, boolean success, String commandExecuted) {}
+    public record ActionIntent(String actionCmd, String tool, String description) {}
 
     // Configuration (can be overridden via environment variables)
     private final long powershellTimeoutSeconds = Long.parseLong(System.getenv().getOrDefault("WIN_TOOL_POWERSHELL_TIMEOUT", "12"));
@@ -345,12 +346,12 @@ public class WindowsToolService {
         String friendlyName;
 
         switch (key) {
-            case "notepad", "note pad", "text editor" -> { command = "notepad.exe"; friendlyName = "Notepad"; }
-            case "calc", "calculator" -> { command = "calc.exe"; friendlyName = "Calculator"; }
+            case "notepad", "note pad", "text editor", "notpad", "notepd" -> { command = "notepad.exe"; friendlyName = "Notepad"; }
+            case "calc", "calculator", "calcy", "calci" -> { command = "calc.exe"; friendlyName = "Calculator"; }
             case "paint", "mspaint" -> { command = "mspaint.exe"; friendlyName = "Paint"; }
-            case "chrome", "google chrome", "browser" -> { command = "chrome"; friendlyName = "Google Chrome"; }
-            case "edge", "microsoft edge" -> { command = "msedge"; friendlyName = "Microsoft Edge"; }
-            case "code", "vscode", "vs code", "visual studio code" -> { command = "code"; friendlyName = "Visual Studio Code"; }
+            case "chrome", "google chrome", "browser", "crome", "chrom", "google crome", "google chrom", "gchrome" -> { command = "chrome"; friendlyName = "Google Chrome"; }
+            case "edge", "microsoft edge", "ms edge", "edg" -> { command = "msedge"; friendlyName = "Microsoft Edge"; }
+            case "code", "vscode", "vs code", "visual studio code", "vsc" -> { command = "code"; friendlyName = "Visual Studio Code"; }
             case "task manager", "taskmgr", "task monitor" -> { command = "taskmgr.exe"; friendlyName = "Task Manager"; }
             case "settings", "windows settings" -> { command = "ms-settings:"; friendlyName = "Windows Settings"; }
             case "control panel" -> { command = "control.exe"; friendlyName = "Control Panel"; }
@@ -358,7 +359,7 @@ public class WindowsToolService {
             case "powershell" -> { command = "powershell.exe"; friendlyName = "PowerShell"; }
             case "camera", "webcam" -> { command = "microsoft.windows.camera:"; friendlyName = "Windows Camera"; }
             case "spotify" -> { command = "spotify:"; friendlyName = "Spotify"; }
-            case "snipping tool", "snip", "snip and sketch" -> { command = "snippingtool.exe"; friendlyName = "Snipping Tool"; }
+            case "snipping tool", "snip", "snip and sketch", "snippingtool" -> { command = "snippingtool.exe"; friendlyName = "Snipping Tool"; }
             case "word", "winword", "microsoft word" -> { command = "winword"; friendlyName = "Microsoft Word"; }
             case "excel", "microsoft excel" -> { command = "excel"; friendlyName = "Microsoft Excel"; }
             case "powerpoint", "powerpnt" -> { command = "powerpnt"; friendlyName = "Microsoft PowerPoint"; }
@@ -366,7 +367,7 @@ public class WindowsToolService {
             default -> { command = key; friendlyName = key; }
         }
 
-        if (key.contains("chrome")) {
+        if (key.contains("chrome") || key.contains("crome") || key.contains("chrom") || key.equals("browser")) {
             return openChrome("");
         }
 
@@ -376,6 +377,81 @@ public class WindowsToolService {
         } else {
             return new ExecutionResult("I attempted to launch " + friendlyName + ", but Windows reported an issue.", "launch_app", false, command);
         }
+    }
+
+    public ExecutionResult executeAction(String action) {
+        if (action == null || action.isBlank()) return null;
+        String a = action.trim();
+        String lower = a.toLowerCase(Locale.ROOT);
+
+        if (lower.startsWith("open_chrome") || lower.startsWith("chrome") || lower.startsWith("crome") || lower.startsWith("chrom")) {
+            String url = a.replaceFirst("(?i)^(open_chrome|chrome|crome|chrom)\\s*", "").trim();
+            return openChrome(url);
+        }
+        if (lower.startsWith("open_app ")) {
+            String app = a.substring(9).trim();
+            return launchApplication(app);
+        }
+        if (lower.equals("open_whatsapp") || lower.contains("whatsapp")) {
+            String r = openWhatsApp();
+            return new ExecutionResult(r, "open_whatsapp", true, "whatsapp:");
+        }
+        if (lower.startsWith("open_folder ")) {
+            String folder = a.substring(12).trim();
+            return openFolder(folder);
+        }
+        if (lower.startsWith("youtube ")) {
+            String q = a.substring(8).trim();
+            return searchWebOrOpenUrl(q, "youtube");
+        }
+        if (lower.startsWith("google ")) {
+            String q = a.substring(7).trim();
+            return searchWebOrOpenUrl(q, "google");
+        }
+        if (lower.startsWith("open_url ")) {
+            String u = a.substring(9).trim();
+            return searchWebOrOpenUrl(u, "url");
+        }
+        if (lower.startsWith("volume ")) {
+            String v = a.substring(7).trim();
+            return controlVolume(v);
+        }
+        if (lower.equals("screenshot") || lower.contains("screenshot") || lower.contains("snip")) {
+            return takeScreenshot();
+        }
+        if (lower.equals("lock") || lower.contains("lock")) {
+            return lockPc();
+        }
+        if (lower.equals("battery") || lower.contains("battery")) {
+            return getBattery();
+        }
+        if (lower.equals("specs") || lower.contains("spec")) {
+            return getSystemSpecs();
+        }
+        if (lower.equals("network") || lower.contains("network") || lower.contains("ip")) {
+            return getNetworkInfo();
+        }
+        if (lower.equals("empty_recycle_bin") || lower.contains("recycle")) {
+            return emptyRecycleBin();
+        }
+        if (lower.startsWith("create_folder ")) {
+            return createFolder(a.substring(14).trim());
+        }
+        if (lower.startsWith("create_file ")) {
+            return createFile(a.substring(12).trim(), "");
+        }
+        if (lower.startsWith("powershell ")) {
+            String ps = a.substring(11).trim();
+            String out = executePowerShell(ps);
+            return new ExecutionResult(out, "windows_ai_action", true, ps);
+        }
+
+        // Try native intent matcher
+        ExecutionResult nativeRes = tryExecuteNativeIntent(a);
+        if (nativeRes != null) return nativeRes;
+
+        // Try launching as app
+        return launchApplication(a);
     }
 
     public ExecutionResult openFolder(String folderName) {
@@ -526,107 +602,118 @@ public class WindowsToolService {
         String m = input.trim();
         String l = m.toLowerCase(Locale.ROOT);
 
-        if (l.contains("open whatsapp") || l.contains("launch whatsapp") || l.equals("whatsapp")) {
+        // Strip polite conversational prefixes
+        String clean = l.replaceFirst("^(?:please|can you|could you|would you|hey astra|hey tharak|astra|tharak)\\s+", "").trim();
+
+        if (clean.contains("open whatsapp") || clean.contains("launch whatsapp") || clean.equals("whatsapp")) {
             String reply = openWhatsApp();
             return new ExecutionResult(reply, "open_whatsapp", true, "whatsapp:");
         }
 
-        if (l.startsWith("run command ") || l.startsWith("execute command ") || (l.startsWith("run ") && l.length() > 6)) {
-            String cmd = m.replaceFirst("(?i)^(run command|execute command|run)\\s+", "").trim();
+        if (clean.matches("(?i)^(?:open|launch|start|run)?(?:\\s+(?:my|the))?\\s*(chrome|crome|chrom|google chrome|google crome|google chrom)(?:\\s+(?:browser|app|application|please))?$")
+                || clean.equals("open crome")
+                || clean.equals("open chrome")
+                || clean.equals("crome")
+                || clean.equals("chrome")) {
+            return openChrome("");
+        }
+
+        if (clean.startsWith("run command ") || clean.startsWith("execute command ") || (clean.startsWith("run ") && clean.length() > 6)) {
+            String cmd = m.replaceFirst("(?i)^(?:please\\s+)?(run command|execute command|run)\\s+", "").trim();
             if (!cmd.isEmpty()) {
                 return runShellCommand(cmd);
             }
         }
-        if (l.startsWith("powershell ")) {
-            String cmd = m.substring(11).trim();
+        if (clean.startsWith("powershell ")) {
+            String cmd = clean.substring(11).trim();
             if (!cmd.isEmpty()) return runShellCommand(cmd);
         }
 
         Pattern ytPat = Pattern.compile("(?i)(?:search youtube for|search for|play)?\\s*(.+?)\\s*(?:on youtube)$");
-        Matcher ytMat = ytPat.matcher(m);
+        Matcher ytMat = ytPat.matcher(clean);
         if (ytMat.find()) {
             return searchWebOrOpenUrl(ytMat.group(1).trim(), "youtube");
         }
-        if (l.startsWith("search youtube for ") || l.startsWith("youtube ")) {
-            String q = m.replaceFirst("(?i)^(search youtube for|youtube)\\s+", "").trim();
+        if (clean.startsWith("search youtube for ") || clean.startsWith("youtube ")) {
+            String q = clean.replaceFirst("(?i)^(search youtube for|youtube)\\s+", "").trim();
             return searchWebOrOpenUrl(q, "youtube");
         }
-        if (l.equals("open youtube") || l.equals("youtube") || l.equals("launch youtube")) {
+        if (clean.equals("open youtube") || clean.equals("youtube") || clean.equals("launch youtube")) {
             return searchWebOrOpenUrl("", "youtube");
         }
 
-        if (l.startsWith("search google for ") || l.startsWith("google ")) {
-            String q = m.replaceFirst("(?i)^(search google for|google)\\s+", "").trim();
+        if (clean.startsWith("search google for ") || clean.startsWith("google ")) {
+            String q = clean.replaceFirst("(?i)^(search google for|google)\\s+", "").trim();
             return searchWebOrOpenUrl(q, "google");
         }
-        if (l.equals("open google") || l.equals("google")) {
+        if (clean.equals("open google") || clean.equals("google")) {
             return searchWebOrOpenUrl("", "google");
         }
-        if (l.startsWith("search for ") && !l.contains("youtube")) {
-            String q = m.substring(11).trim();
+        if (clean.startsWith("search for ") && !clean.contains("youtube")) {
+            String q = clean.substring(11).trim();
             return searchWebOrOpenUrl(q, "google");
         }
 
-        if (l.matches("(?i)^(open|go to)\\s+([a-zA-Z0-9.-]+\\.(com|org|net|io|in|edu|gov|dev)(/.*)?)$")) {
-            String url = m.replaceFirst("(?i)^(open|go to)\\s+", "").trim();
+        if (clean.matches("(?i)^(open|go to)\\s+([a-zA-Z0-9.-]+\\.(com|org|net|io|in|edu|gov|dev)(/.*)?)$")) {
+            String url = clean.replaceFirst("(?i)^(open|go to)\\s+", "").trim();
             return searchWebOrOpenUrl(url, "url");
         }
 
-        if (l.contains("unmute")) return controlVolume("unmute");
-        if (l.contains("mute") || l.contains("silence")) return controlVolume("mute");
-        if (l.contains("volume up") || l.contains("increase volume") || l.contains("turn up volume") || l.contains("louder")) return controlVolume("up");
-        if (l.contains("volume down") || l.contains("decrease volume") || l.contains("turn down volume") || l.contains("lower volume")) return controlVolume("down");
-        if (l.contains("play music") || l.contains("pause music") || l.equals("pause") || l.equals("play/pause")) return controlVolume("play_pause");
+        if (clean.contains("unmute")) return controlVolume("unmute");
+        if (clean.contains("mute") || clean.contains("silence")) return controlVolume("mute");
+        if (clean.contains("volume up") || clean.contains("increase volume") || clean.contains("turn up volume") || clean.contains("louder")) return controlVolume("up");
+        if (clean.contains("volume down") || clean.contains("decrease volume") || clean.contains("turn down volume") || clean.contains("lower volume")) return controlVolume("down");
+        if (clean.contains("play music") || clean.contains("pause music") || clean.equals("pause") || clean.equals("play/pause")) return controlVolume("play_pause");
 
-        if (l.contains("screenshot") || l.contains("screen shot") || l.contains("capture screen") || l.contains("snipping tool") || l.contains("screen snip")) {
+        if (clean.contains("screenshot") || clean.contains("screen shot") || clean.contains("capture screen") || clean.contains("snipping tool") || clean.contains("screen snip")) {
             return takeScreenshot();
         }
 
-        if (l.contains("lock my laptop") || l.contains("lock laptop") || l.contains("lock pc") || l.contains("lock my pc") || l.contains("lock screen") || l.equals("lock")) {
+        if (clean.contains("lock my laptop") || clean.contains("lock laptop") || clean.contains("lock pc") || clean.contains("lock my pc") || clean.contains("lock screen") || clean.equals("lock")) {
             return lockPc();
         }
 
-        if (l.contains("battery") || l.contains("battery percentage") || l.contains("battery level") || l.contains("battery status") || l.contains("charge percentage")) {
+        if (clean.contains("battery") || clean.contains("battery percentage") || clean.contains("battery level") || clean.contains("battery status") || clean.contains("charge percentage")) {
             return getBattery();
         }
 
-        if (l.contains("ip address") || l.contains("my ip") || l.contains("wifi status") || l.contains("wifi info") || l.contains("network status")) {
+        if (clean.contains("ip address") || clean.contains("my ip") || clean.contains("wifi status") || clean.contains("wifi info") || clean.contains("network status")) {
             return getNetworkInfo();
         }
 
-        if (l.contains("system spec") || l.contains("laptop spec") || l.contains("pc spec") || l.contains("system info") || l.contains("ram usage") || l.contains("specs")) {
+        if (clean.contains("system spec") || clean.contains("laptop spec") || clean.contains("pc spec") || clean.contains("system info") || clean.contains("ram usage") || clean.contains("specs")) {
             return getSystemSpecs();
         }
 
-        if (l.contains("empty recycle bin") || l.contains("clear recycle bin") || l.contains("clean recycle bin")) {
+        if (clean.contains("empty recycle bin") || clean.contains("clear recycle bin") || clean.contains("clean recycle bin")) {
             return emptyRecycleBin();
         }
 
         Pattern folderPat = Pattern.compile("(?i)^(?:open|show|browse)(?:\\s+my)?\\s+(downloads|desktop|documents|docs|pictures|photos|music|videos|c drive|d drive)(?:\\s+folder)?$");
-        Matcher folderMat = folderPat.matcher(m);
+        Matcher folderMat = folderPat.matcher(clean);
         if (folderMat.find()) {
             return openFolder(folderMat.group(1));
         }
 
         Pattern createFolderPat = Pattern.compile("(?i)^(?:create|make|new)\\s+folder\\s+(?:called|named)?\\s*(.+)$");
-        Matcher cfMat = createFolderPat.matcher(m);
+        Matcher cfMat = createFolderPat.matcher(clean);
         if (cfMat.find()) {
             return createFolder(cfMat.group(1));
         }
 
         Pattern createFilePat = Pattern.compile("(?i)^(?:create|make|new)\\s+file\\s+(?:called|named)?\\s*([a-zA-Z0-9_.-]+)$");
-        Matcher cfileMat = createFilePat.matcher(m);
+        Matcher cfileMat = createFilePat.matcher(clean);
         if (cfileMat.find()) {
             return createFile(cfileMat.group(1), "");
         }
 
-        Pattern appPat = Pattern.compile("(?i)^(?:open|launch|start|run)(?:\\s+my)?\\s+(notepad|calculator|calc|paint|mspaint|chrome|google chrome|edge|microsoft edge|vs code|vscode|code|visual studio code|task manager|taskmgr|settings|windows settings|control panel|cmd|command prompt|powershell|terminal|camera|webcam|spotify|snipping tool|word|winword|excel|powerpoint|file explorer|explorer|files)$");
-        Matcher appMat = appPat.matcher(m);
+        Pattern appPat = Pattern.compile("(?i)^(?:open|launch|start|run)?(?:\\s+(?:my|the))?\\s+(notepad|note pad|notpad|calculator|calc|calcy|calci|paint|mspaint|edge|microsoft edge|ms edge|edg|vs code|vscode|code|visual studio code|vsc|task manager|taskmgr|settings|windows settings|control panel|cmd|command prompt|powershell|terminal|camera|webcam|spotify|snipping tool|snippingtool|snip|word|winword|excel|powerpoint|file explorer|explorer|files)(?:\\s+(?:app|application|program|please))?$");
+        Matcher appMat = appPat.matcher(clean);
         if (appMat.find()) {
             return launchApplication(appMat.group(1));
         }
 
-        if (l.contains("show capabilities") || l.contains("what can you do") || l.equals("help") || l.contains("capabilities") || l.contains("commands list")) {
+        if (clean.contains("show capabilities") || clean.contains("what can you do") || clean.equals("help") || clean.contains("capabilities") || clean.contains("commands list")) {
             String cap = "I have direct access to your Windows laptop! Here is what I can do:\n" +
                     "• Open Apps: Notepad, Chrome (uses improved launcher), VS Code, Calc, Paint, Task Manager, Settings, Spotify, Terminal, Camera, etc.\n" +
                     "• Browse & Search: Search YouTube (\"Search YouTube for jazz\"), Google (\"Google weather\"), or open any website.\n" +
@@ -638,5 +725,189 @@ public class WindowsToolService {
         }
 
         return null;
+    }
+
+    public ActionIntent resolveActionIntent(String input) {
+        if (input == null || input.isBlank()) return null;
+        String m = input.trim();
+        String l = m.toLowerCase(Locale.ROOT);
+        String clean = l.replaceFirst("^(?:please|can you|could you|would you|hey astra|hey tharak|astra|tharak)\\s+", "").trim();
+
+        if (clean.contains("open whatsapp") || clean.contains("launch whatsapp") || clean.equals("whatsapp")) {
+            return new ActionIntent("open_whatsapp", "open_whatsapp", "Open WhatsApp");
+        }
+
+        if (clean.matches("(?i)^(?:open|launch|start|run)?(?:\\s+(?:my|the))?\\s*(chrome|crome|chrom|google chrome|google crome|google chrom)(?:\\s+(?:browser|app|application|please))?$")
+                || clean.equals("open crome")
+                || clean.equals("open chrome")
+                || clean.equals("crome")
+                || clean.equals("chrome")) {
+            return new ActionIntent("open_chrome", "open_chrome", "Open Google Chrome");
+        }
+
+        if (clean.startsWith("run command ") || clean.startsWith("execute command ") || (clean.startsWith("run ") && clean.length() > 6)) {
+            String cmd = m.replaceFirst("(?i)^(?:please\\s+)?(run command|execute command|run)\\s+", "").trim();
+            if (!cmd.isEmpty()) {
+                return new ActionIntent("powershell " + cmd, "windows_ai_action", "Run command: \"" + cmd + "\"");
+            }
+        }
+        if (clean.startsWith("powershell ")) {
+            String cmd = clean.substring(11).trim();
+            if (!cmd.isEmpty()) {
+                return new ActionIntent("powershell " + cmd, "windows_ai_action", "Run PowerShell script: \"" + cmd + "\"");
+            }
+        }
+
+        Pattern ytPat = Pattern.compile("(?i)(?:search youtube for|search for|play)?\\s*(.+?)\\s*(?:on youtube)$");
+        Matcher ytMat = ytPat.matcher(clean);
+        if (ytMat.find()) {
+            String q = ytMat.group(1).trim();
+            return new ActionIntent("youtube " + q, "youtube_search", "Search YouTube for \"" + q + "\"");
+        }
+        if (clean.startsWith("search youtube for ") || clean.startsWith("youtube ")) {
+            String q = clean.replaceFirst("(?i)^(search youtube for|youtube)\\s+", "").trim();
+            return new ActionIntent("youtube " + q, "youtube_search", "Search YouTube for \"" + q + "\"");
+        }
+        if (clean.equals("open youtube") || clean.equals("youtube") || clean.equals("launch youtube")) {
+            return new ActionIntent("youtube ", "youtube_search", "Open YouTube");
+        }
+
+        if (clean.startsWith("search google for ") || clean.startsWith("google ")) {
+            String q = clean.replaceFirst("(?i)^(search google for|google)\\s+", "").trim();
+            return new ActionIntent("google " + q, "google_search", "Search Google for \"" + q + "\"");
+        }
+        if (clean.equals("open google") || clean.equals("google")) {
+            return new ActionIntent("google ", "google_search", "Open Google");
+        }
+        if (clean.startsWith("search for ") && !clean.contains("youtube")) {
+            String q = clean.substring(11).trim();
+            return new ActionIntent("google " + q, "google_search", "Search Google for \"" + q + "\"");
+        }
+
+        if (clean.matches("(?i)^(open|go to)\\s+([a-zA-Z0-9.-]+\\.(com|org|net|io|in|edu|gov|dev)(/.*)?)$")) {
+            String url = clean.replaceFirst("(?i)^(open|go to)\\s+", "").trim();
+            return new ActionIntent("open_url " + url, "open_url", "Open website: " + url);
+        }
+
+        if (clean.contains("unmute")) return new ActionIntent("volume unmute", "volume_control", "Unmute laptop audio");
+        if (clean.contains("mute") || clean.contains("silence")) return new ActionIntent("volume mute", "volume_control", "Mute laptop audio");
+        if (clean.contains("volume up") || clean.contains("increase volume") || clean.contains("turn up volume") || clean.contains("louder")) return new ActionIntent("volume up", "volume_control", "Increase volume");
+        if (clean.contains("volume down") || clean.contains("decrease volume") || clean.contains("turn down volume") || clean.contains("lower volume")) return new ActionIntent("volume down", "volume_control", "Decrease volume");
+        if (clean.contains("play music") || clean.contains("pause music") || clean.equals("pause") || clean.equals("play/pause")) return new ActionIntent("volume play_pause", "volume_control", "Toggle media playback");
+
+        if (clean.contains("screenshot") || clean.contains("screen shot") || clean.contains("capture screen") || clean.contains("snipping tool") || clean.contains("screen snip")) {
+            return new ActionIntent("screenshot", "take_screenshot", "Take screenshot with Snipping Tool");
+        }
+
+        if (clean.contains("lock my laptop") || clean.contains("lock laptop") || clean.contains("lock pc") || clean.contains("lock my pc") || clean.contains("lock screen") || clean.equals("lock")) {
+            return new ActionIntent("lock", "lock_workstation", "Lock laptop screen");
+        }
+
+        if (clean.contains("battery") || clean.contains("battery percentage") || clean.contains("battery level") || clean.contains("battery status") || clean.contains("charge percentage")) {
+            return new ActionIntent("battery", "battery_status", "Check laptop battery status");
+        }
+
+        if (clean.contains("ip address") || clean.contains("my ip") || clean.contains("wifi status") || clean.contains("wifi info") || clean.contains("network status")) {
+            return new ActionIntent("network", "network_info", "Check local IP and Wi-Fi network");
+        }
+
+        if (clean.contains("system spec") || clean.contains("laptop spec") || clean.contains("pc spec") || clean.contains("system info") || clean.contains("ram usage") || clean.contains("specs")) {
+            return new ActionIntent("specs", "system_specs", "Inspect laptop system specifications");
+        }
+
+        if (clean.contains("empty recycle bin") || clean.contains("clear recycle bin") || clean.contains("clean recycle bin")) {
+            return new ActionIntent("empty_recycle_bin", "empty_recycle_bin", "Empty Windows Recycle Bin");
+        }
+
+        Pattern folderPat = Pattern.compile("(?i)^(?:open|show|browse)(?:\\s+my)?\\s+(downloads|desktop|documents|docs|pictures|photos|music|videos|c drive|d drive)(?:\\s+folder)?$");
+        Matcher folderMat = folderPat.matcher(clean);
+        if (folderMat.find()) {
+            String f = folderMat.group(1);
+            return new ActionIntent("open_folder " + f, "open_folder", "Open " + f + " folder in File Explorer");
+        }
+
+        Pattern createFolderPat = Pattern.compile("(?i)^(?:create|make|new)\\s+folder\\s+(?:called|named)?\\s*(.+)$");
+        Matcher cfMat = createFolderPat.matcher(clean);
+        if (cfMat.find()) {
+            String fn = cfMat.group(1).trim();
+            return new ActionIntent("create_folder " + fn, "create_folder", "Create folder \"" + fn + "\" on Desktop");
+        }
+
+        Pattern createFilePat = Pattern.compile("(?i)^(?:create|make|new)\\s+file\\s+(?:called|named)?\\s*([a-zA-Z0-9_.-]+)$");
+        Matcher cfileMat = createFilePat.matcher(clean);
+        if (cfileMat.find()) {
+            String fn = cfileMat.group(1).trim();
+            return new ActionIntent("create_file " + fn, "create_file", "Create file \"" + fn + "\" on Desktop");
+        }
+
+        Pattern appPat = Pattern.compile("(?i)^(?:open|launch|start|run)?(?:\\s+(?:my|the))?\\s+(notepad|note pad|notpad|calculator|calc|calcy|calci|paint|mspaint|edge|microsoft edge|ms edge|edg|vs code|vscode|code|visual studio code|vsc|task manager|taskmgr|settings|windows settings|control panel|cmd|command prompt|powershell|terminal|camera|webcam|spotify|snipping tool|snippingtool|snip|word|winword|excel|powerpoint|file explorer|explorer|files)(?:\\s+(?:app|application|program|please))?$");
+        Matcher appMat = appPat.matcher(clean);
+        if (appMat.find()) {
+            String app = appMat.group(1);
+            return new ActionIntent("open_app " + app, "launch_app", "Launch " + app);
+        }
+
+        return null;
+    }
+
+    public String getFriendlyDescription(String actionCmd) {
+        if (actionCmd == null || actionCmd.isBlank()) return "perform requested action";
+        String a = actionCmd.trim();
+        String lower = a.toLowerCase(Locale.ROOT);
+
+        if (lower.startsWith("open_chrome") || lower.startsWith("chrome") || lower.startsWith("crome") || lower.startsWith("chrom")) {
+            String url = a.replaceFirst("(?i)^(open_chrome|chrome|crome|chrom)\\s*", "").trim();
+            return url.isEmpty() ? "Open Google Chrome" : "Open Google Chrome to " + url;
+        }
+        if (lower.startsWith("open_app ")) {
+            return "Launch application: " + a.substring(9).trim();
+        }
+        if (lower.equals("open_whatsapp") || lower.contains("whatsapp")) {
+            return "Open WhatsApp";
+        }
+        if (lower.startsWith("open_folder ")) {
+            return "Open folder: " + a.substring(12).trim();
+        }
+        if (lower.startsWith("youtube ")) {
+            return "Search YouTube for: " + a.substring(8).trim();
+        }
+        if (lower.startsWith("google ")) {
+            return "Search Google for: " + a.substring(7).trim();
+        }
+        if (lower.startsWith("open_url ")) {
+            return "Open website: " + a.substring(9).trim();
+        }
+        if (lower.startsWith("volume ")) {
+            return "Adjust system volume (" + a.substring(7).trim() + ")";
+        }
+        if (lower.equals("screenshot") || lower.contains("screenshot") || lower.contains("snip")) {
+            return "Take a screenshot with Snipping Tool";
+        }
+        if (lower.equals("lock") || lower.contains("lock")) {
+            return "Lock laptop screen";
+        }
+        if (lower.equals("battery") || lower.contains("battery")) {
+            return "Check laptop battery status";
+        }
+        if (lower.equals("specs") || lower.contains("spec")) {
+            return "Inspect system hardware specifications";
+        }
+        if (lower.equals("network") || lower.contains("network") || lower.contains("ip")) {
+            return "Check local network & IP information";
+        }
+        if (lower.equals("empty_recycle_bin") || lower.contains("recycle")) {
+            return "Empty Windows Recycle Bin";
+        }
+        if (lower.startsWith("create_folder ")) {
+            return "Create folder \"" + a.substring(14).trim() + "\" on Desktop";
+        }
+        if (lower.startsWith("create_file ")) {
+            return "Create file \"" + a.substring(12).trim() + "\" on Desktop";
+        }
+        if (lower.startsWith("powershell ")) {
+            return "Execute PowerShell command: " + a.substring(11).trim();
+        }
+
+        return "Execute: " + a;
     }
 }
