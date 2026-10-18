@@ -98,7 +98,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
   }
 
   checkBackendHealth() {
-    fetch('http://localhost:8080/api/agent/health')
+    fetch('https://astra-backend-id01.onrender.com/api/agent/health')
       .then(r => {
         this.zone.run(() => {
           this.backendLive = r.ok;
@@ -138,7 +138,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.cdr.detectChanges();
     this.scrollToBottom();
 
-    fetch('http://localhost:8080/api/agent/chat', {
+    fetch('https://astra-backend-id01.onrender.com/api/agent/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: m })
@@ -188,10 +188,10 @@ export class AppComponent implements OnInit, AfterViewChecked {
             {
               id: 'err-' + Date.now(),
               role: 'tharak',
-              text: 'Could not connect to Tharak Spring Boot backend. Please verify the backend is running on port 8080.',
+              text: 'Could not connect to Tharak Spring Boot backend. Please verify the backend is running on https://astra-backend-id01.onrender.com/.',
               time: this.formatTime(new Date()),
               isError: true,
-              errorDetail: 'Connection refused on http://localhost:8080',
+              errorDetail: 'Connection refused on https://astra-backend-id01.onrender.com/',
               commandTip: 'Run: mvn spring-boot:run in astra-backend'
             }
           ];
