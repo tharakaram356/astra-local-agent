@@ -132,7 +132,7 @@
           </div>
           <div class="stack-row">
             <span class="stack-name">Agent</span>
-            <span class="stack-val">Ollama Local · llama3.2</span>
+            <span class="stack-val">Gemini AI · 3.8 Flash</span>
           </div>
         </div>
       </section>
@@ -182,7 +182,35 @@
 
               <!-- Standard Message Bubble -->
               <div *ngIf="!m.isError" class="astra-content-box">
-                {{m.text}}
+                <div>{{m.text}}</div>
+
+                <!-- Permission Request Prompt -->
+                <div *ngIf="m.pendingAction && m.permissionState === 'pending'" class="permission-prompt-card">
+                  <div class="permission-card-header">
+                    <span class="shield-badge">🛡️ Permission Required</span>
+                    <span class="action-target">{{m.pendingAction.description}}</span>
+                  </div>
+                  <p class="permission-card-text">
+                    Tharak needs your approval before accessing this tool on your Windows laptop.
+                  </p>
+                  <div class="permission-btn-row">
+                    <button class="perm-btn perm-allow-btn" (click)="approvePermission(m)">
+                      <span class="btn-icon">✓</span> Allow & Open
+                    </button>
+                    <button class="perm-btn perm-deny-btn" (click)="denyPermission(m)">
+                      <span class="btn-icon">✕</span> Deny
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Permission Status Badges -->
+                <div *ngIf="m.pendingAction && m.permissionState === 'approved'" class="permission-status-banner status-approved">
+                  <span>✓ Permission Granted · {{m.pendingAction.description}}</span>
+                </div>
+
+                <div *ngIf="m.pendingAction && m.permissionState === 'denied'" class="permission-status-banner status-denied">
+                  <span>✕ Permission Denied · Action Cancelled</span>
+                </div>
               </div>
 
               <!-- Error Box (Exact match to screenshot) -->
@@ -236,7 +264,7 @@
                 <span class="msg-time-label">Thinking</span>
               </div>
               <div class="astra-content-box thinking-box">
-                <span>Thinking locally with Ollama</span>
+                <span>Thinking with Gemini AI</span>
                 <span class="animated-dots"><span>.</span><span>.</span><span>.</span></span>
               </div>
             </div>
@@ -350,10 +378,10 @@
           <div class="integration-item">
             <span class="live-dot green-dot"></span>
             <div class="int-info">
-              <span class="int-title">Ollama Local AI</span>
-              <span class="int-sub">llama3.2:3b · Local Engine</span>
+              <span class="int-title">Gemini AI</span>
+              <span class="int-sub">gemini-3.8-flash · Google AI</span>
             </div>
-            <span class="int-badge">Local</span>
+            <span class="int-badge">Gemini</span>
           </div>
         </div>
       </section>

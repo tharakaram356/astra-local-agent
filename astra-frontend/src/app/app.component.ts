@@ -10,6 +10,12 @@ export interface ChatMessage {
   isError?: boolean;
   errorDetail?: string;
   commandTip?: string;
+  pendingAction?: {
+    tool: string;
+    actionCmd: string;
+    description: string;
+  };
+  permissionState?: 'pending' | 'approved' | 'denied';
 }
 
 export interface ToolCall {
@@ -97,8 +103,15 @@ export class AppComponent implements OnInit, AfterViewChecked {
     } catch (_) {}
   }
 
+  getApiBaseUrl(): string {
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://localhost:8080';
+    }
+    return 'https://astra-backend-id01.onrender.com';
+  }
+
   checkBackendHealth() {
-    fetch('https://astra-backend-id01.onrender.com/api/agent/health')
+    fetch(`${this.getApiBaseUrl()}/api/agent/health`)
       .then(r => {
         this.zone.run(() => {
           this.backendLive = r.ok;
@@ -138,10 +151,10 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.cdr.detectChanges();
     this.scrollToBottom();
 
-    fetch('https://astra-backend-id01.onrender.com/api/agent/chat', {
+    fetch(`${this.getApiBaseUrl()}/api/agent/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: m })
+      body: JSON.stringify({ message: m, sessionId: this.sessionId })
     })
       .then(async r => {
         const d = await r.json();
@@ -152,18 +165,105 @@ export class AppComponent implements OnInit, AfterViewChecked {
         this.zone.run(() => {
           this.backendLive = true;
           const replyText = d.reply || 'I am here to help!';
-          const toolUsed = d.tool ?? 'ollama_local_ai';
+          const toolUsed = d.tool ?? 'gemini';
+          this.lastTool = toolUsed;
+
+          const requiresPerm = d.requiresPermission === 'true' || d.requiresPermission === true;
+
+          this.toolCalls.unshift({
+            name: toolUsed,
+            time: this.formatTime(new Date()),
+            tag: requiresPerm ? 'Permission' : (toolUsed === 'open_whatsapp' || toolUsed.startsWith('open_') || toolUsed === 'launch_app' || toolUsed.includes('windows') || toolUsed.includes('command') || toolUsed.includes('volume') || toolUsed.includes('battery') || toolUsed.includes('screenshot') || toolUsed.includes('specs') ? 'Windows OS' : (toolUsed === 'calculator' || toolUsed.includes('time') || toolUsed.includes('date') ? 'Built-in' : 'Gemini AI')),
+            detail: requiresPerm ? `Permission requested: "${d.actionDescription || m}"` : `Processed "${m.length > 24 ? m.substring(0, 24) + '...' : m}"`
+          });
+          if (this.toolCalls.length > 6) this.toolCalls.pop();
+
+          // Append reply and show immediately
+          this.messages = [
+            ...this.messages,
+            {
+              id: 'msg-' + Date.now(),
+              role: 'tharak',
+              text: replyText,
+              time: this.formatTime(new Date()),
+              pendingAction: requiresPerm && d.pendingAction ? {
+                tool: toolUsed,
+                actionCmd: d.pendingAction,
+                description: d.actionDescription || 'Access Tool'
+              } : undefined,
+              permissionState: requiresPerm ? 'pending' : undefined
+            }
+          ];
+          this.status = 'Tharak is ready · Click mic or type';
+          this.shouldScrollToBottom = true;
+          this.cdr.detectChanges();
+          this.scrollToBottom();
+          this.speak(replyText);
+        });
+      })
+      .catch(e => {
+        this.zone.run(() => {
+          this.backendLive = false;
+          this.messages = [
+            ...this.messages,
+            {
+              id: 'err-' + Date.now(),
+              role: 'tharak',
+              text: `Could not connect to Tharak backend at ${this.getApiBaseUrl()}. Please verify the backend is running.`,
+              time: this.formatTime(new Date()),
+              isError: true,
+              errorDetail: `Connection refused on ${this.getApiBaseUrl()}`,
+              commandTip: 'Run: mvn spring-boot:run in astra-backend'
+            }
+          ];
+          this.status = 'Backend offline';
+          this.shouldScrollToBottom = true;
+          this.cdr.detectChanges();
+          this.scrollToBottom();
+        });
+      })
+      .finally(() => {
+        this.zone.run(() => {
+          this.busy = false;
+          this.cdr.detectChanges();
+          this.scrollToBottom();
+        });
+      });
+  }
+
+  approvePermission(msg: ChatMessage) {
+    if (!msg.pendingAction || msg.permissionState !== 'pending') return;
+    msg.permissionState = 'approved';
+    this.busy = true;
+    this.status = `Granting permission for ${msg.pendingAction.description}... 🛡️`;
+    this.cdr.detectChanges();
+
+    fetch(`${this.getApiBaseUrl()}/api/agent/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: msg.pendingAction.actionCmd,
+        sessionId: this.sessionId
+      })
+    })
+      .then(async r => {
+        const d = await r.json();
+        return d;
+      })
+      .then(d => {
+        this.zone.run(() => {
+          const replyText = d.reply || 'Action executed successfully.';
+          const toolUsed = d.tool ?? msg.pendingAction?.tool ?? 'windows_action';
           this.lastTool = toolUsed;
 
           this.toolCalls.unshift({
             name: toolUsed,
             time: this.formatTime(new Date()),
-            tag: toolUsed === 'open_whatsapp' || toolUsed.startsWith('open_') || toolUsed === 'launch_app' || toolUsed.includes('windows') || toolUsed.includes('command') || toolUsed.includes('volume') || toolUsed.includes('battery') || toolUsed.includes('screenshot') || toolUsed.includes('specs') ? 'Windows OS' : (toolUsed === 'calculator' || toolUsed.includes('time') || toolUsed.includes('date') ? 'Built-in' : 'Local AI'),
-            detail: `Processed "${m.length > 24 ? m.substring(0, 24) + '...' : m}"`
+            tag: 'Windows OS',
+            detail: `Approved & executed "${msg.pendingAction?.description}"`
           });
           if (this.toolCalls.length > 6) this.toolCalls.pop();
 
-          // Append reply and show immediately
           this.messages = [
             ...this.messages,
             {
@@ -182,32 +282,54 @@ export class AppComponent implements OnInit, AfterViewChecked {
       })
       .catch(e => {
         this.zone.run(() => {
-          this.backendLive = false;
-          this.messages = [
-            ...this.messages,
-            {
-              id: 'err-' + Date.now(),
-              role: 'tharak',
-              text: 'Could not connect to Tharak Spring Boot backend. Please verify the backend is running on https://astra-backend-id01.onrender.com/.',
-              time: this.formatTime(new Date()),
-              isError: true,
-              errorDetail: 'Connection refused on https://astra-backend-id01.onrender.com/',
-              commandTip: 'Run: mvn spring-boot:run in astra-backend'
-            }
-          ];
-          this.status = 'Backend offline';
-          this.shouldScrollToBottom = true;
+          this.status = 'Action execution failed';
           this.cdr.detectChanges();
-          this.scrollToBottom();
         });
       })
       .finally(() => {
         this.zone.run(() => {
           this.busy = false;
           this.cdr.detectChanges();
-          this.scrollToBottom();
         });
       });
+  }
+
+  denyPermission(msg: ChatMessage) {
+    if (!msg.pendingAction || msg.permissionState !== 'pending') return;
+    msg.permissionState = 'denied';
+    this.cdr.detectChanges();
+
+    fetch(`${this.getApiBaseUrl()}/api/agent/deny`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: this.sessionId
+      })
+    })
+      .then(async r => {
+        const d = await r.json();
+        return d;
+      })
+      .then(d => {
+        this.zone.run(() => {
+          const replyText = d.reply || 'Action cancelled.';
+          this.messages = [
+            ...this.messages,
+            {
+              id: 'msg-' + Date.now(),
+              role: 'tharak',
+              text: replyText,
+              time: this.formatTime(new Date())
+            }
+          ];
+          this.status = 'Tharak is ready · Click mic or type';
+          this.shouldScrollToBottom = true;
+          this.cdr.detectChanges();
+          this.scrollToBottom();
+          this.speak(replyText);
+        });
+      })
+      .catch(() => {});
   }
 
   retryConnection() {
