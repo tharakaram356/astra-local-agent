@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/agent")
-@CrossOrigin(origins={"https://astra-local-agent.onrender.com/"})
+@CrossOrigin(origins={"https://astra-local-agent-frontend.onrender.com"})
 public class AgentController {
     private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
     private final OllamaService ollama;
