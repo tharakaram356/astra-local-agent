@@ -31,11 +31,6 @@ public class AgentController {
         this.windows = windows;
     }
 
-    public record PendingAction(String actionCmd, String description, String tool) {}
-
-    private final java.util.concurrent.ConcurrentHashMap<String, PendingAction> pendingActions =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
     // ---------------------------------------------------------
     // HEALTH
     // ---------------------------------------------------------
@@ -51,20 +46,14 @@ public class AgentController {
     }
 
     // ---------------------------------------------------------
-    // EXECUTE (AFTER PERMISSION GRANTED)
+    // DIRECT EXECUTE
     // ---------------------------------------------------------
 
     @PostMapping("/execute")
     public ResponseEntity<Map<String, String>> execute(
             @RequestBody Map<String, String> req) {
 
-        String session = req.getOrDefault("sessionId", "default");
         String action = req.getOrDefault("action", "").trim();
-
-        PendingAction pending = pendingActions.remove(session);
-        if (action.isBlank() && pending != null) {
-            action = pending.actionCmd();
-        }
 
         if (action.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -74,37 +63,14 @@ public class AgentController {
         }
 
         WindowsToolService.ExecutionResult res = windows.executeAction(action);
-        String desc = windows.getFriendlyDescription(action);
-        String reply = "Permission granted! " + (res != null ? res.reply() : "Executed " + desc + ".");
-
         return ResponseEntity.ok(Map.of(
-                "reply", reply,
-                "tool", res != null ? res.tool() : "windows_action",
-                "status", "approved"
+                "reply", res != null ? res.reply() : "Action executed.",
+                "tool", res != null ? res.tool() : "windows_action"
         ));
     }
 
     // ---------------------------------------------------------
-    // DENY PERMISSION
-    // ---------------------------------------------------------
-
-    @PostMapping("/deny")
-    public ResponseEntity<Map<String, String>> deny(
-            @RequestBody Map<String, String> req) {
-
-        String session = req.getOrDefault("sessionId", "default");
-        PendingAction pending = pendingActions.remove(session);
-        String desc = pending != null ? pending.description() : "the requested tool";
-
-        return ResponseEntity.ok(Map.of(
-                "reply", "Permission denied. I cancelled the request to " + desc + ".",
-                "tool", "permission_denied",
-                "status", "denied"
-        ));
-    }
-
-    // ---------------------------------------------------------
-    // CHAT
+    // CHAT (AUTOMATIC EXECUTION - NO PERMISSION POPUPS)
     // ---------------------------------------------------------
 
     @PostMapping("/chat")
@@ -113,10 +79,6 @@ public class AgentController {
 
         String message =
                 req.getOrDefault("message", "").trim();
-        String session =
-                req.getOrDefault("sessionId", "default");
-        boolean confirmed =
-                Boolean.parseBoolean(req.getOrDefault("confirmed", "false"));
 
         if (message.isBlank()) {
 
@@ -133,38 +95,7 @@ public class AgentController {
                 message.toLowerCase();
 
         // -----------------------------------------------------
-        // CHECK PENDING ACTION CONFIRMATION (VIA TEXT OR VOICE)
-        // -----------------------------------------------------
-
-        PendingAction pending = pendingActions.get(session);
-        if (pending != null) {
-            String trimmedLower = lower.trim().replaceAll("[.!?]+$", "");
-            boolean isConfirm = trimmedLower.matches("(?i)^(yes|yep|yeah|sure|ok|okay|confirm|allow|proceed|go ahead|do it|granted|please do)$");
-            boolean isDeny = trimmedLower.matches("(?i)^(no|nope|nah|deny|cancel|stop|don't|do not|nevermind|abort)$");
-
-            if (isConfirm) {
-                pendingActions.remove(session);
-                WindowsToolService.ExecutionResult execRes = windows.executeAction(pending.actionCmd());
-                String reply = "Permission granted! " + (execRes != null ? execRes.reply() : "Executed " + pending.description() + ".");
-                return ResponseEntity.ok(Map.of(
-                        "reply", reply,
-                        "tool", execRes != null ? execRes.tool() : pending.tool(),
-                        "status", "approved"
-                ));
-            }
-
-            if (isDeny) {
-                pendingActions.remove(session);
-                return ResponseEntity.ok(Map.of(
-                        "reply", "Permission denied. I cancelled the request to " + pending.description() + ".",
-                        "tool", "permission_denied",
-                        "status", "denied"
-                ));
-            }
-        }
-
-        // -----------------------------------------------------
-        // TIME (NO PERMISSION REQUIRED)
+        // TIME
         // -----------------------------------------------------
 
         if (lower.contains("what time")
@@ -191,7 +122,7 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // DATE (NO PERMISSION REQUIRED)
+        // DATE
         // -----------------------------------------------------
 
         if (lower.contains("today's date")
@@ -219,7 +150,7 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // CALCULATOR (NO PERMISSION REQUIRED)
+        // CALCULATOR
         // -----------------------------------------------------
 
         if (lower.startsWith("calculate ")
@@ -248,41 +179,39 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // WINDOWS NATIVE INTENT (REQUIRES PERMISSION BEFORE ACCESS)
+        // WINDOWS COMMANDS (AUTOMATIC EXECUTION)
         // -----------------------------------------------------
 
         try {
 
-            WindowsToolService.ActionIntent
-                    nativeIntent = windows.resolveActionIntent(message);
+            WindowsToolService.ActionIntent nativeIntent =
+                    windows.resolveActionIntent(message);
 
             if (nativeIntent != null) {
-
-                if (confirmed) {
-                    WindowsToolService.ExecutionResult res = windows.executeAction(nativeIntent.actionCmd());
-                    return ResponseEntity.ok(Map.of(
-                            "reply", res != null ? res.reply() : "Executed " + nativeIntent.description(),
-                            "tool", res != null ? res.tool() : nativeIntent.tool(),
-                            "status", "approved"
-                    ));
-                }
-
-                pendingActions.put(session, new PendingAction(nativeIntent.actionCmd(), nativeIntent.description(), nativeIntent.tool()));
+                WindowsToolService.ExecutionResult res =
+                        windows.executeAction(nativeIntent.actionCmd());
 
                 return ResponseEntity.ok(
                         Map.of(
                                 "reply",
-                                "I need your permission to access this tool: "
-                                        + nativeIntent.description()
-                                        + ". Would you like me to proceed?",
+                                res != null ? res.reply() : "Opened " + nativeIntent.description() + ".",
                                 "tool",
-                                "permission_request",
-                                "requiresPermission",
-                                "true",
-                                "pendingAction",
-                                nativeIntent.actionCmd(),
-                                "actionDescription",
-                                nativeIntent.description()
+                                res != null ? res.tool() : nativeIntent.tool()
+                        )
+                );
+            }
+
+            WindowsToolService.ExecutionResult nativeResult =
+                    windows.tryExecuteNativeIntent(message);
+
+            if (nativeResult != null) {
+
+                return ResponseEntity.ok(
+                        Map.of(
+                                "reply",
+                                nativeResult.reply(),
+                                "tool",
+                                nativeResult.tool()
                         )
                 );
             }
@@ -293,8 +222,7 @@ public class AgentController {
                     .body(
                             Map.of(
                                     "reply",
-                                    "I found a Windows command, "
-                                            + "but it could not be processed.",
+                                    "I found a Windows command, but it could not be executed.",
                                     "tool",
                                     "windows_error"
                             )
@@ -302,32 +230,13 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // GEMINI AI (ASK PERMISSION IF ACTION RETURNED)
+        // GEMINI AI (AUTOMATIC ACTION EXECUTION)
         // -----------------------------------------------------
 
         try {
 
             GeminiService.AiActionResponse actionResponse =
-                    gemini.chatWithWindowsAction(message, windows, confirmed);
-
-            if (actionResponse.requiresPermission() && actionResponse.pendingAction() != null) {
-                pendingActions.put(session, new PendingAction(actionResponse.pendingAction(), actionResponse.actionDescription(), actionResponse.tool()));
-
-                return ResponseEntity.ok(
-                        Map.of(
-                                "reply",
-                                actionResponse.reply(),
-                                "tool",
-                                "permission_request",
-                                "requiresPermission",
-                                "true",
-                                "pendingAction",
-                                actionResponse.pendingAction(),
-                                "actionDescription",
-                                actionResponse.actionDescription()
-                        )
-                );
-            }
+                    gemini.chatWithWindowsAction(message, windows);
 
             return ResponseEntity.ok(
                     Map.of(
@@ -344,8 +253,7 @@ public class AgentController {
                     .body(
                             Map.of(
                                     "reply",
-                                    "Astra AI could not connect "
-                                            + "to Gemini right now.",
+                                    "Astra AI could not connect to Gemini right now.",
                                     "tool",
                                     "gemini_error"
                             )

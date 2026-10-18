@@ -182,35 +182,7 @@
 
               <!-- Standard Message Bubble -->
               <div *ngIf="!m.isError" class="astra-content-box">
-                <div>{{m.text}}</div>
-
-                <!-- Permission Request Prompt -->
-                <div *ngIf="m.pendingAction && m.permissionState === 'pending'" class="permission-prompt-card">
-                  <div class="permission-card-header">
-                    <span class="shield-badge">🛡️ Permission Required</span>
-                    <span class="action-target">{{m.pendingAction.description}}</span>
-                  </div>
-                  <p class="permission-card-text">
-                    Tharak needs your approval before accessing this tool on your Windows laptop.
-                  </p>
-                  <div class="permission-btn-row">
-                    <button class="perm-btn perm-allow-btn" (click)="approvePermission(m)">
-                      <span class="btn-icon">✓</span> Allow & Open
-                    </button>
-                    <button class="perm-btn perm-deny-btn" (click)="denyPermission(m)">
-                      <span class="btn-icon">✕</span> Deny
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Permission Status Badges -->
-                <div *ngIf="m.pendingAction && m.permissionState === 'approved'" class="permission-status-banner status-approved">
-                  <span>✓ Permission Granted · {{m.pendingAction.description}}</span>
-                </div>
-
-                <div *ngIf="m.pendingAction && m.permissionState === 'denied'" class="permission-status-banner status-denied">
-                  <span>✕ Permission Denied · Action Cancelled</span>
-                </div>
+                {{m.text}}
               </div>
 
               <!-- Error Box (Exact match to screenshot) -->

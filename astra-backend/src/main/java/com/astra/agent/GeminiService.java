@@ -14,13 +14,7 @@ import java.util.regex.Pattern;
 @Service
 public class GeminiService {
 
-    public record AiActionResponse(
-            String reply,
-            String tool,
-            boolean requiresPermission,
-            String pendingAction,
-            String actionDescription
-    ) {}
+    public record AiActionResponse(String reply, String tool) {}
 
     private final RestClient client;
     private final String apiKey;
@@ -39,7 +33,7 @@ public class GeminiService {
         this.model = model;
     }
 
-    public AiActionResponse chatWithWindowsAction(String userMessage, WindowsToolService windows, boolean executeNow) {
+    public AiActionResponse chatWithWindowsAction(String userMessage, WindowsToolService windows) {
         String systemPrompt = """
                 You are Tharak (also known as Astra AI), a powerful and friendly AI assistant running directly on the user's Windows laptop with full control over Windows.
 
@@ -47,7 +41,7 @@ public class GeminiService {
 
                 When the user asks you to do something on their laptop, or whenever their request involves a Windows or browser action (even with typos or voice transcription mistakes like "open crome", "crome", "chrom", "vsc", "notpad", "edg", etc.), YOU MUST RESPOND IN THIS FORMAT:
                 ACTION: <action_name> [arguments]
-                REPLY: <short friendly spoken response explaining what you are doing>
+                REPLY: <short friendly spoken response confirming what you opened or did>
 
                 Supported ACTION formats:
                 - ACTION: open_chrome [optional_url]     (e.g., user says "open crome", "launch chrome", "open google chrome", "open browser")
@@ -71,8 +65,9 @@ public class GeminiService {
                 CRITICAL INSTRUCTIONS:
                 1. NEVER say "I can't open applications on your device directly" or "I don't have access to your computer". You DO have direct control over this Windows laptop through your system tools!
                 2. ALWAYS interpret misspellings and voice transcription mistakes (e.g., "open crome", "crome" -> ACTION: open_chrome).
-                3. If the user's intent is to launch or open an app, folder, site, or perform an action, ALWAYS output ACTION: followed by REPLY:.
-                4. If the user is just asking a question (e.g. coding question, explanations, general knowledge, greetings, math, chit-chat) where no Windows laptop action is required, DO NOT include ACTION:. Simply answer naturally, warmly, and concisely because your answer will be spoken aloud.
+                3. If the user's intent is to launch or open an app, folder, site, or perform an action, ALWAYS output ACTION: followed by REPLY:. It will be executed automatically on their laptop.
+                4. Do NOT ask for permission or prompt confirmation - all actions are executed automatically.
+                5. If the user is just asking a question (e.g. coding question, explanations, general knowledge, greetings, math, chit-chat) where no Windows laptop action is required, DO NOT include ACTION:. Simply answer naturally, warmly, and concisely because your answer will be spoken aloud.
                 """;
 
         Map<String, Object> body = Map.of(
@@ -155,35 +150,25 @@ public class GeminiService {
             }
         }
 
-        if (actionCmd != null && !actionCmd.isBlank()) {
-            String desc = windows != null ? windows.getFriendlyDescription(actionCmd) : actionCmd;
-
-            if (executeNow) {
-                WindowsToolService.ExecutionResult execRes = windows != null ? windows.executeAction(actionCmd) : null;
-                if (reply == null || reply.isBlank()) {
-                    reply = execRes != null ? execRes.reply() : "I executed " + desc + " for you.";
-                }
-                String tool = execRes != null && execRes.tool() != null ? execRes.tool() : "windows_ai_action";
-                return new AiActionResponse(reply, tool, false, null, null);
-            } else {
-                String permissionPrompt = "I need your permission to access this tool: " + desc + ". Would you like me to proceed?";
-                return new AiActionResponse(permissionPrompt, "permission_request", true, actionCmd, desc);
+        // Execute action automatically immediately!
+        if (actionCmd != null && !actionCmd.isBlank() && windows != null) {
+            WindowsToolService.ExecutionResult execRes = windows.executeAction(actionCmd);
+            if (reply == null || reply.isBlank()) {
+                reply = execRes != null ? execRes.reply() : "I have executed that for you.";
             }
+            String tool = execRes != null && execRes.tool() != null ? execRes.tool() : "windows_ai_action";
+            return new AiActionResponse(reply, tool);
         }
 
         if (raw.startsWith("REPLY:")) {
             raw = raw.substring(6).trim();
         }
 
-        return new AiActionResponse(raw, "gemini", false, null, null);
-    }
-
-    public AiActionResponse chatWithWindowsAction(String userMessage, WindowsToolService windows) {
-        return chatWithWindowsAction(userMessage, windows, false);
+        return new AiActionResponse(raw, "gemini");
     }
 
     public String chat(String userMessage) {
-        return chatWithWindowsAction(userMessage, null, false).reply();
+        return chatWithWindowsAction(userMessage, null).reply();
     }
 
     private String extractText(Map<?, ?> response) {
