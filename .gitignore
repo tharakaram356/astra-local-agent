@@ -1,0 +1,25 @@
+# Angular
+astra-frontend/node_modules/
+astra-frontend/dist/
+astra-frontend/.angular/
+
+# Spring Boot
+astra-backend/target/
+*.class
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# Secrets
+.env
+*.env
+application-local.properties
+
+# OS
+.DS_Store
+Thumbs.db

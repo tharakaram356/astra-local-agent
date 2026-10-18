@@ -1,0 +1,414 @@
+<div class="dashboard-page">
+  <!-- Top App Header -->
+  <header class="top-header">
+    <div class="brand-block">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#38bdf8" stroke-width="1.4" stroke-opacity="0.35" />
+          <circle cx="12" cy="12" r="4.5" stroke="#38bdf8" stroke-width="1.8" fill="#0369a130" />
+          <circle cx="12" cy="12" r="1.8" fill="#38bdf8" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#818cf8" stroke-width="1.6" stroke-linecap="round" />
+          <path d="M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="#a855f7" stroke-width="1.2" stroke-linecap="round" />
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name-row">
+          <span class="brand-name">THARAK</span>
+          <span class="version-tag">v3.0</span>
+        </div>
+        <div class="brand-sub">Windows AI Voice Agent</div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="agent-status-pill" [class.is-listening]="listening" [class.is-speaking]="isSpeaking">
+        <span class="status-glow-dot" [class.listening]="listening" [class.thinking]="busy" [class.speaking]="isSpeaking"></span>
+        <span class="status-label">{{status}}</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="backend-pill" [class.is-live]="backendLive">
+        <span class="backend-dot"></span>
+        <span class="backend-text">{{backendLive ? 'Backend 8080 Live' : 'Backend 8080 Offline'}}</span>
+      </div>
+
+      <button class="top-btn" [class.btn-active]="soundEnabled" (click)="toggleSound()" [title]="soundEnabled ? 'Mute Speech' : 'Unmute Speech'">
+        <svg *ngIf="soundEnabled" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <svg *ngIf="!soundEnabled" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+
+      <button class="top-btn" (click)="clearChat()" title="Clear Chat History">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 3-Column Main Content -->
+  <main class="dashboard-grid">
+    <!-- LEFT COLUMN -->
+    <aside class="left-col">
+      <!-- Interaction Banner Card -->
+      <section class="panel-card voice-banner-card">
+        <span class="card-caption">VOICE-FIRST INTERACTION</span>
+        <h1 class="hero-title">
+          Talk to Tharak.<br>
+          <span class="highlight-cyan">Control Windows.</span>
+        </h1>
+        <p class="hero-description">
+          Automate desktop actions, launch applications, and converse using native browser voice recognition and Spring Boot automation.
+        </p>
+
+        <button class="whatsapp-cta-card" (click)="openWhatsApp()">
+          <div class="wa-icon-squircle">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-.86 4.27-2.42 5.82a8.188 8.188 0 0 1-5.82 2.42c-1.46 0-2.89-.39-4.14-1.12l-.3-.18-3.08.81.82-3-.2-.31a8.163 8.163 0 0 1-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24zm4.52 11.66c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.39-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.12-.14.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.12-.56-1.34-.76-1.84-.2-.49-.4-.42-.56-.43h-.47c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.43 1.03 2.6.12.17 1.78 2.72 4.3 3.81.6.26 1.07.41 1.44.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.12-.22-.19-.47-.31z"/>
+            </svg>
+          </div>
+          <div class="wa-content">
+            <span class="wa-main">Open WhatsApp</span>
+            <span class="wa-sub">Native Windows Protocol</span>
+          </div>
+          <span class="wa-chevron">›</span>
+        </button>
+      </section>
+
+      <!-- Quick Prompts Card -->
+      <section class="panel-card quick-prompts-card">
+        <span class="card-caption">QUICK PROMPTS</span>
+        <div class="prompts-list">
+          <button class="prompt-item-btn" (click)="openWhatsApp()">
+            <span class="prompt-glyph">💬</span>
+            <span class="prompt-title">Open WhatsApp</span>
+          </button>
+          <button class="prompt-item-btn" (click)="quick('What time is it in India?')">
+            <span class="prompt-glyph">🕒</span>
+            <span class="prompt-title">Current Time</span>
+          </button>
+          <button class="prompt-item-btn" (click)="quick('What is today\'s date?')">
+            <span class="prompt-glyph">📅</span>
+            <span class="prompt-title">Today's Date</span>
+          </button>
+          <button class="prompt-item-btn" (click)="quick('Calculate: 125 * 48')">
+            <span class="prompt-glyph">🧮</span>
+            <span class="prompt-title">Calculate: 125 * 48</span>
+          </button>
+          <button class="prompt-item-btn" (click)="quick('Tell me a fun friendly fact!')">
+            <span class="prompt-glyph">✨</span>
+            <span class="prompt-title">Fun Friendly Fact</span>
+          </button>
+          <button class="prompt-item-btn" (click)="quick('Show Capabilities')">
+            <span class="prompt-glyph">⚡</span>
+            <span class="prompt-title">Show Capabilities</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- System Stack Card -->
+      <section class="panel-card system-stack-card">
+        <span class="card-caption">SYSTEM STACK</span>
+        <div class="stack-list">
+          <div class="stack-row">
+            <span class="stack-name">Platform</span>
+            <span class="stack-val">Windows 11</span>
+          </div>
+          <div class="stack-row">
+            <span class="stack-name">Frontend</span>
+            <span class="stack-val">Angular 21 · Node 24</span>
+          </div>
+          <div class="stack-row">
+            <span class="stack-name">Backend</span>
+            <span class="stack-val">Spring Boot 3.5 · Java 21</span>
+          </div>
+          <div class="stack-row">
+            <span class="stack-name">Agent</span>
+            <span class="stack-val">Ollama Local · llama3.2</span>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- CENTER COLUMN: CONVERSATION STREAM -->
+    <section class="center-col">
+      <div class="conversation-stream-panel">
+        <div class="stream-header">
+          <div class="stream-header-left">
+            <h2 class="stream-title">Conversation Stream</h2>
+            <span class="stream-session-tag">{{sessionId}}...</span>
+          </div>
+          <div class="stream-header-right">
+            <span class="stream-msg-count">{{messages.length}} message{{messages.length === 1 ? '' : 's'}}</span>
+          </div>
+        </div>
+
+        <div class="stream-messages-viewport" #scrollViewport>
+          <div *ngFor="let m of messages" class="stream-msg-item" [class.user-turn]="m.role==='you'">
+            <!-- Tharak Avatar -->
+            <div *ngIf="m.role==='tharak' || m.role==='astra'" class="agent-avatar-circle" [class.avatar-speaking]="isSpeaking">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+
+            <!-- Tharak Body -->
+            <div *ngIf="m.role==='tharak' || m.role==='astra'" class="msg-bubble-wrapper">
+              <div class="msg-meta-row">
+                <span class="author-astra">THARAK</span>
+                <span class="msg-time-label">{{m.time}}</span>
+                <button class="msg-copy-btn" (click)="speak(m.text)" title="Read aloud">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  </svg>
+                </button>
+                <button class="msg-copy-btn" (click)="copyText(m.text)" title="Copy message">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Standard Message Bubble -->
+              <div *ngIf="!m.isError" class="astra-content-box">
+                {{m.text}}
+              </div>
+
+              <!-- Error Box (Exact match to screenshot) -->
+              <div *ngIf="m.isError" class="backend-error-box">
+                <div class="error-primary-line">
+                  <span class="plug-icon">🔌</span>
+                  <span class="error-text-title">{{m.text}}</span>
+                </div>
+                <div *ngIf="m.errorDetail" class="error-sub-detail">
+                  {{m.errorDetail}}
+                </div>
+                <div class="error-action-row">
+                  <button class="retry-connection-btn" (click)="retryConnection()">
+                    Retry Connection
+                  </button>
+                </div>
+                <div *ngIf="m.commandTip" class="run-tip-box">
+                  Run: <span class="tip-code">{{m.commandTip}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- User Turn -->
+            <div *ngIf="m.role==='you'" class="user-bubble-wrapper">
+              <div class="msg-meta-row user-meta">
+                <span class="msg-time-label">{{m.time}}</span>
+                <span class="author-user">YOU</span>
+              </div>
+              <div class="user-content-box">
+                {{m.text}}
+              </div>
+            </div>
+
+            <!-- User Avatar -->
+            <div *ngIf="m.role==='you'" class="user-avatar-circle">
+              <span>U</span>
+            </div>
+          </div>
+
+          <!-- Thinking row -->
+          <div *ngIf="busy" class="stream-msg-item">
+            <div class="agent-avatar-circle pulse-fast">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+            <div class="msg-bubble-wrapper">
+              <div class="msg-meta-row">
+                <span class="author-astra">THARAK</span>
+                <span class="msg-time-label">Thinking</span>
+              </div>
+              <div class="astra-content-box thinking-box">
+                <span>Thinking locally with Ollama</span>
+                <span class="animated-dots"><span>.</span><span>.</span><span>.</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FRIENDLY LIVE VOICE LISTENING BANNER (Appears when Mic is Active) -->
+        <div class="friendly-voice-banner" *ngIf="listening">
+          <div class="voice-anim-bars">
+            <span class="v-bar b1"></span>
+            <span class="v-bar b2"></span>
+            <span class="v-bar b3"></span>
+            <span class="v-bar b4"></span>
+            <span class="v-bar b5"></span>
+          </div>
+          <div class="voice-banner-text">
+            <div class="v-title">I'm listening to you... speak naturally! 🎙️</div>
+            <div class="v-sub" *ngIf="!interimSpoken">
+              Try: <em>"What time is it?"</em>, <em>"Open my WhatsApp"</em>, or ask anything!
+            </div>
+            <div class="v-sub active-hearing" *ngIf="interimSpoken">
+              Hearing: <strong>"{{interimSpoken}}"</strong>
+            </div>
+          </div>
+          <button class="stop-listening-pill" (click)="startVoice()" title="Finish speaking">
+            Done Speaking ✓
+          </button>
+        </div>
+
+        <!-- FRIENDLY SPEAKING BANNER (Appears when Tharak Speaks Aloud) -->
+        <div class="friendly-speaking-banner" *ngIf="isSpeaking">
+          <div class="mini-soundwave">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <span class="speaking-label">Tharak is speaking aloud...</span>
+          <button class="stop-speaking-btn" (click)="toggleSound()">Mute Voice</button>
+        </div>
+
+        <!-- Input Bar (Composer) -->
+        <div class="composer-container" [class.composer-listening]="listening">
+          <input 
+            type="text"
+            [(ngModel)]="input" 
+            (keydown.enter)="sendMessage()" 
+            placeholder="Type a command or click the mic to speak with Tharak..." 
+            [disabled]="busy"
+            class="composer-input"
+          />
+          <button 
+            type="button"
+            class="composer-btn mic-btn" 
+            [class.is-active]="listening" 
+            (click)="startVoice()" 
+            [title]="listening ? 'Listening... click to stop' : 'Click to talk with Tharak'"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+          </button>
+          <button 
+            type="button"
+            class="composer-btn send-btn" 
+            (click)="sendMessage()" 
+            [disabled]="busy || !input.trim()"
+            title="Send"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN -->
+    <aside class="right-col">
+      <!-- Windows Integrations Card -->
+      <section class="panel-card integrations-card">
+        <span class="card-caption">WINDOWS INTEGRATIONS</span>
+        <div class="integrations-list">
+          <div class="integration-item">
+            <span class="live-dot green-dot"></span>
+            <div class="int-info">
+              <span class="int-title">WhatsApp Bridge</span>
+              <span class="int-sub">Windows Protocol Handler</span>
+            </div>
+            <span class="int-badge">Native</span>
+          </div>
+
+          <div class="integration-item">
+            <span class="live-dot green-dot"></span>
+            <div class="int-info">
+              <span class="int-title">Web Speech Input</span>
+              <span class="int-sub">SpeechRecognition en-IN</span>
+            </div>
+            <span class="int-badge">Browser</span>
+          </div>
+
+          <div class="integration-item">
+            <span class="live-dot green-dot"></span>
+            <div class="int-info">
+              <span class="int-title">Speech Synthesizer</span>
+              <span class="int-sub">Natural Voice Feedback</span>
+            </div>
+            <span class="int-badge">Audio</span>
+          </div>
+
+          <div class="integration-item">
+            <span class="live-dot green-dot"></span>
+            <div class="int-info">
+              <span class="int-title">Ollama Local AI</span>
+              <span class="int-sub">llama3.2:3b · Local Engine</span>
+            </div>
+            <span class="int-badge">Local</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Activity & Tool Calls Card -->
+      <section class="panel-card activity-card">
+        <span class="card-caption">ACTIVITY & TOOL CALLS</span>
+        
+        <div *ngIf="toolCalls.length === 0" class="empty-activity-state">
+          <div class="activity-lightning-glyph">⚡</div>
+          <div class="empty-act-title">No tool executions yet.</div>
+          <div class="empty-act-sub">Commands like "Open WhatsApp" will log execution traces here.</div>
+        </div>
+
+        <div *ngIf="toolCalls.length > 0" class="activity-traces-list">
+          <div *ngFor="let t of toolCalls" class="trace-item">
+            <div class="trace-header">
+              <span class="trace-name">{{t.name}}</span>
+              <span class="trace-time">{{t.time}}</span>
+            </div>
+            <div class="trace-detail">{{t.detail}}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- System Shortcuts Card -->
+      <section class="panel-card shortcuts-card">
+        <span class="card-caption">SYSTEM SHORTCUTS</span>
+        <div class="shortcuts-list">
+          <button class="shortcut-btn" (click)="openWhatsApp()">
+            <span class="shortcut-name">Launch WhatsApp Native</span>
+            <span class="shortcut-tag">Click</span>
+          </button>
+          <button class="shortcut-btn" (click)="quick('What time is it in India?')">
+            <span class="shortcut-name">Check Current Time</span>
+            <span class="shortcut-tag">IST</span>
+          </button>
+          <button class="shortcut-btn" (click)="quick('What is today\'s date?')">
+            <span class="shortcut-name">Check Today's Date</span>
+            <span class="shortcut-tag">Date</span>
+          </button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Right Floating Flare Decorative Buttons (as seen on the right edge) -->
+  <div class="edge-sparkle-pill top-edge-pill">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2.4 7.6 7.6 2.4-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/>
+    </svg>
+  </div>
+  <div class="edge-sparkle-pill bottom-edge-pill">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2.4 7.6 7.6 2.4-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/>
+    </svg>
+  </div>
+</div>
