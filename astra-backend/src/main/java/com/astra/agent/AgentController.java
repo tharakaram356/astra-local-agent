@@ -21,9 +21,14 @@ public class AgentController {
     private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
 
     private final GeminiService gemini;
+    private final WindowsToolService windows;
 
-    public AgentController(GeminiService gemini) {
+    public AgentController(
+            GeminiService gemini,
+            WindowsToolService windows) {
+
         this.gemini = gemini;
+        this.windows = windows;
     }
 
     // ---------------------------------------------------------
@@ -48,20 +53,25 @@ public class AgentController {
     public ResponseEntity<Map<String, String>> chat(
             @RequestBody Map<String, String> req) {
 
-        String message = req.getOrDefault("message", "").trim();
+        String message =
+                req.getOrDefault("message", "").trim();
 
         if (message.isBlank()) {
+
             return ResponseEntity.badRequest()
                     .body(Map.of(
-                            "reply", "Please say or type something.",
-                            "tool", "validation"
+                            "reply",
+                            "Please say or type something.",
+                            "tool",
+                            "validation"
                     ));
         }
 
-        String lower = message.toLowerCase();
+        String lower =
+                message.toLowerCase();
 
         // -----------------------------------------------------
-        // CURRENT TIME
+        // TIME
         // -----------------------------------------------------
 
         if (lower.contains("what time")
@@ -70,12 +80,17 @@ public class AgentController {
 
             String time = ZonedDateTime
                     .now(INDIA)
-                    .format(DateTimeFormatter.ofPattern("hh:mm a"));
+                    .format(
+                            DateTimeFormatter.ofPattern(
+                                    "hh:mm a"
+                            )
+                    );
 
             return ResponseEntity.ok(
                     Map.of(
                             "reply",
-                            "The current time in India is " + time + ".",
+                            "The current time in India is "
+                                    + time + ".",
                             "tool",
                             "current_time"
                     )
@@ -83,7 +98,7 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // CURRENT DATE
+        // DATE
         // -----------------------------------------------------
 
         if (lower.contains("today's date")
@@ -93,12 +108,17 @@ public class AgentController {
 
             String date = ZonedDateTime
                     .now(INDIA)
-                    .format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
+                    .format(
+                            DateTimeFormatter.ofPattern(
+                                    "dd MMMM yyyy"
+                            )
+                    );
 
             return ResponseEntity.ok(
                     Map.of(
                             "reply",
-                            "Today's date in India is " + date + ".",
+                            "Today's date in India is "
+                                    + date + ".",
                             "tool",
                             "current_date"
                     )
@@ -112,12 +132,11 @@ public class AgentController {
         if (lower.startsWith("calculate ")
                 || lower.startsWith("calc ")) {
 
-            String expression = message
-                    .replaceFirst(
+            String expression =
+                    message.replaceFirst(
                             "(?i)^(calculate|calc)\\s+",
                             ""
-                    )
-                    .trim();
+                    ).trim();
 
             String result = calculate(expression);
 
@@ -126,7 +145,8 @@ public class AgentController {
                 return ResponseEntity.ok(
                         Map.of(
                                 "reply",
-                                "The answer is " + result + ".",
+                                "The answer is "
+                                        + result + ".",
                                 "tool",
                                 "calculator"
                         )
@@ -135,28 +155,67 @@ public class AgentController {
         }
 
         // -----------------------------------------------------
-        // GEMINI AI
+        // WINDOWS COMMANDS
         // -----------------------------------------------------
 
         try {
 
-            String reply = gemini.chat(message);
+            WindowsToolService.ExecutionResult
+                    nativeResult =
+                    windows.tryExecuteNativeIntent(message);
+
+            if (nativeResult != null) {
+
+                return ResponseEntity.ok(
+                        Map.of(
+                                "reply",
+                                nativeResult.reply(),
+                                "tool",
+                                nativeResult.tool()
+                        )
+                );
+            }
+
+        } catch (Exception e) {
+
+            return ResponseEntity.status(500)
+                    .body(
+                            Map.of(
+                                    "reply",
+                                    "I found a Windows command, "
+                                            + "but it could not be executed.",
+                                    "tool",
+                                    "windows_error"
+                            )
+                    );
+        }
+
+        // -----------------------------------------------------
+        // GEMINI
+        // -----------------------------------------------------
+
+        try {
+
+            String reply =
+                    gemini.chat(message);
 
             return ResponseEntity.ok(
                     Map.of(
-                            "reply", reply,
-                            "tool", "gemini"
+                            "reply",
+                            reply,
+                            "tool",
+                            "gemini"
                     )
             );
 
         } catch (Exception e) {
 
-            return ResponseEntity
-                    .status(503)
+            return ResponseEntity.status(503)
                     .body(
                             Map.of(
                                     "reply",
-                                    "Astra AI could not connect to Gemini right now. Please try again.",
+                                    "Astra AI could not connect "
+                                            + "to Gemini right now.",
                                     "tool",
                                     "gemini_error"
                             )
@@ -170,7 +229,8 @@ public class AgentController {
 
     private String calculate(String expression) {
 
-        expression = expression.replaceAll("\\s+", "");
+        expression =
+                expression.replaceAll("\\s+", "");
 
         if (!Pattern.matches(
                 "[0-9+\\-*/().]+",
