@@ -2,6 +2,7 @@ package com.astra.agent;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -10,105 +11,323 @@ import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/agent")
-@CrossOrigin(origins={"https://astra-local-agent-frontend.onrender.com"})
+@CrossOrigin(origins = {
+        "https://astra-local-agent-frontend.onrender.com",
+        "http://localhost:4300",
+        "http://localhost:4200"
+})
 public class AgentController {
-    private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
-    private final OllamaService ollama;
-    private final WindowsToolService windows;
 
-    public AgentController(OllamaService ollama, WindowsToolService windows) {
-        this.ollama = ollama;
-        this.windows = windows;
+    private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
+
+    private final GeminiService gemini;
+
+    public AgentController(GeminiService gemini) {
+        this.gemini = gemini;
     }
+
+    // ---------------------------------------------------------
+    // HEALTH
+    // ---------------------------------------------------------
 
     @GetMapping("/health")
-    public Map<String,Object> health() {
-        return Map.of("status", "UP", "agent", "Astra Local v4", "ollama", ollama.health());
+    public Map<String, Object> health() {
+
+        return Map.of(
+                "status", "UP",
+                "agent", "Astra AI",
+                "ai", gemini.health()
+        );
     }
 
-    @PostMapping("/open-whatsapp")
-    public Map<String,String> openWhatsApp() {
-        return Map.of("reply", windows.openWhatsApp(), "tool", "open_whatsapp");
-    }
+    // ---------------------------------------------------------
+    // CHAT
+    // ---------------------------------------------------------
 
     @PostMapping("/chat")
-    public ResponseEntity<Map<String,String>> chat(@RequestBody Map<String,String> req) {
-        String m = req.getOrDefault("message", "").trim();
-        if (m.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("reply", "Please say or type something."));
-        }
-        String l = m.toLowerCase();
+    public ResponseEntity<Map<String, String>> chat(
+            @RequestBody Map<String, String> req) {
 
-        // 1. Time / Date queries (Instant response)
-        if (l.contains("what time") || l.equals("time") || l.contains("current time")) {
-            String t = ZonedDateTime.now(INDIA).format(DateTimeFormatter.ofPattern("hh:mm a"));
-            return ResponseEntity.ok(Map.of("reply", "The current time in India is " + t + ".", "tool", "current_time"));
-        }
+        String message = req.getOrDefault("message", "").trim();
 
-        if (l.contains("today's date") || l.contains("todays date") || l.equals("date")) {
-            String d = ZonedDateTime.now(INDIA).format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
-            return ResponseEntity.ok(Map.of("reply", "Today's date in India is " + d + ".", "tool", "current_date"));
+        if (message.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "reply", "Please say or type something.",
+                            "tool", "validation"
+                    ));
         }
 
-        // 2. Math Calculations
-        if (l.startsWith("calculate ") || l.startsWith("calc ")) {
-            String expr = m.replaceFirst("(?i)^(calculate|calc)\\s+", "").trim();
-            String r = calculate(expr);
-            if (r != null) {
-                return ResponseEntity.ok(Map.of("reply", "The answer is " + r + ".", "tool", "calculator"));
+        String lower = message.toLowerCase();
+
+        // -----------------------------------------------------
+        // CURRENT TIME
+        // -----------------------------------------------------
+
+        if (lower.contains("what time")
+                || lower.equals("time")
+                || lower.contains("current time")) {
+
+            String time = ZonedDateTime
+                    .now(INDIA)
+                    .format(DateTimeFormatter.ofPattern("hh:mm a"));
+
+            return ResponseEntity.ok(
+                    Map.of(
+                            "reply",
+                            "The current time in India is " + time + ".",
+                            "tool",
+                            "current_time"
+                    )
+            );
+        }
+
+        // -----------------------------------------------------
+        // CURRENT DATE
+        // -----------------------------------------------------
+
+        if (lower.contains("today's date")
+                || lower.contains("todays date")
+                || lower.equals("date")
+                || lower.contains("current date")) {
+
+            String date = ZonedDateTime
+                    .now(INDIA)
+                    .format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
+
+            return ResponseEntity.ok(
+                    Map.of(
+                            "reply",
+                            "Today's date in India is " + date + ".",
+                            "tool",
+                            "current_date"
+                    )
+            );
+        }
+
+        // -----------------------------------------------------
+        // CALCULATOR
+        // -----------------------------------------------------
+
+        if (lower.startsWith("calculate ")
+                || lower.startsWith("calc ")) {
+
+            String expression = message
+                    .replaceFirst(
+                            "(?i)^(calculate|calc)\\s+",
+                            ""
+                    )
+                    .trim();
+
+            String result = calculate(expression);
+
+            if (result != null) {
+
+                return ResponseEntity.ok(
+                        Map.of(
+                                "reply",
+                                "The answer is " + result + ".",
+                                "tool",
+                                "calculator"
+                        )
+                );
             }
         }
 
-        // 3. High-Speed Windows Native Intent Matcher (Instant execution for apps, volume, folders, websites, screenshots, etc.)
-        WindowsToolService.ExecutionResult nativeResult = windows.tryExecuteNativeIntent(m);
-        if (nativeResult != null) {
-            return ResponseEntity.ok(Map.of("reply", nativeResult.reply(), "tool", nativeResult.tool()));
-        }
+        // -----------------------------------------------------
+        // GEMINI AI
+        // -----------------------------------------------------
 
-        // 4. Ollama AI Agent with Windows Action Generation & Fallback Chat
         try {
-            OllamaService.AiActionResponse aiResp = ollama.chatWithWindowsAction(m, windows);
-            return ResponseEntity.ok(Map.of("reply", aiResp.reply(), "tool", aiResp.tool()));
+
+            String reply = gemini.chat(message);
+
+            return ResponseEntity.ok(
+                    Map.of(
+                            "reply", reply,
+                            "tool", "gemini"
+                    )
+            );
+
         } catch (Exception e) {
-            return ResponseEntity.status(503).body(Map.of(
-                "reply", "Astra could not reach Ollama for AI generation. However, direct laptop commands (open apps, volume, folders, screenshots) remain fully functional!",
-                "tool", "ollama_error"
-            ));
+
+            return ResponseEntity
+                    .status(503)
+                    .body(
+                            Map.of(
+                                    "reply",
+                                    "Astra AI could not connect to Gemini right now. Please try again.",
+                                    "tool",
+                                    "gemini_error"
+                            )
+                    );
         }
     }
 
-    private String calculate(String s) {
-        s = s.replaceAll("\\s+", "");
-        if (!Pattern.matches("[0-9+\\-*/().]+", s)) return null;
+    // ---------------------------------------------------------
+    // CALCULATOR
+    // ---------------------------------------------------------
+
+    private String calculate(String expression) {
+
+        expression = expression.replaceAll("\\s+", "");
+
+        if (!Pattern.matches(
+                "[0-9+\\-*/().]+",
+                expression)) {
+
+            return null;
+        }
+
         try {
-            return trim(eval(s));
+
+            return trim(eval(expression));
+
         } catch (Exception e) {
+
             return null;
         }
     }
 
-    private double eval(String s) {
+    private double eval(String expression) {
+
         return new Object() {
-            int pos = -1, ch;
-            void next() { ch = (++pos < s.length()) ? s.charAt(pos) : -1; }
-            boolean eat(int c) { while (ch == ' ') next(); if (ch == c) { next(); return true; } return false; }
-            double parse() { next(); double x = expr(); if (pos < s.length()) throw new RuntimeException(); return x; }
-            double expr() { double x = term(); for (;;) { if (eat('+')) x += term(); else if (eat('-')) x -= term(); else return x; } }
-            double term() { double x = factor(); for (;;) { if (eat('*')) x *= factor(); else if (eat('/')) x /= factor(); else return x; } }
-            double factor() {
-                if (eat('+')) return factor();
-                if (eat('-')) return -factor();
-                int start = pos;
-                if (eat('(')) { double x = expr(); if (!eat(')')) throw new RuntimeException(); return x; }
-                while ((ch >= '0' && ch <= '9') || ch == '.') next();
-                if (start == pos) throw new RuntimeException();
-                return Double.parseDouble(s.substring(start, pos));
+
+            int position = -1;
+            int character;
+
+            void next() {
+
+                character =
+                        (++position < expression.length())
+                                ? expression.charAt(position)
+                                : -1;
             }
+
+            boolean eat(int c) {
+
+                while (character == ' ') {
+                    next();
+                }
+
+                if (character == c) {
+                    next();
+                    return true;
+                }
+
+                return false;
+            }
+
+            double parse() {
+
+                next();
+
+                double value = expr();
+
+                if (position < expression.length()) {
+                    throw new RuntimeException();
+                }
+
+                return value;
+            }
+
+            double expr() {
+
+                double value = term();
+
+                while (true) {
+
+                    if (eat('+')) {
+
+                        value += term();
+
+                    } else if (eat('-')) {
+
+                        value -= term();
+
+                    } else {
+
+                        return value;
+                    }
+                }
+            }
+
+            double term() {
+
+                double value = factor();
+
+                while (true) {
+
+                    if (eat('*')) {
+
+                        value *= factor();
+
+                    } else if (eat('/')) {
+
+                        value /= factor();
+
+                    } else {
+
+                        return value;
+                    }
+                }
+            }
+
+            double factor() {
+
+                if (eat('+')) {
+                    return factor();
+                }
+
+                if (eat('-')) {
+                    return -factor();
+                }
+
+                int start = position;
+
+                if (eat('(')) {
+
+                    double value = expr();
+
+                    if (!eat(')')) {
+                        throw new RuntimeException();
+                    }
+
+                    return value;
+                }
+
+                while ((character >= '0'
+                        && character <= '9')
+                        || character == '.') {
+
+                    next();
+                }
+
+                if (start == position) {
+                    throw new RuntimeException();
+                }
+
+                return Double.parseDouble(
+                        expression.substring(
+                                start,
+                                position
+                        )
+                );
+            }
+
         }.parse();
     }
 
-    private String trim(double v) {
-        if (Double.isInfinite(v) || Double.isNaN(v)) return "undefined";
-        return v == (long) v ? Long.toString((long) v) : Double.toString(v);
+    private String trim(double value) {
+
+        if (Double.isInfinite(value)
+                || Double.isNaN(value)) {
+
+            return "undefined";
+        }
+
+        return value == (long) value
+                ? Long.toString((long) value)
+                : Double.toString(value);
     }
 }
